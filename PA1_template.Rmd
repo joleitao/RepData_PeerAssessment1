@@ -5,21 +5,112 @@ output:
     keep_md: true
 ---
 
+# Reproducible Research - Peer Assessment 1
+
+Make sure you have set working directory appropriately and that you have unzipped the data file.
 
 ## Loading and preprocessing the data
 
+As a first step, we load the data using read.csv and remove all the missing values: 
 
+```{r}
+act_data_raw <- read.csv("activity.csv")
+act_data <- act_data_raw[complete.cases(act_data_raw), ]
+```
 
 ## What is mean total number of steps taken per day?
 
+This question is addressed in three steps.  
+First, the total number of steps is calculated for each day. 
 
+```{r}
+num_steps_perDay <- aggregate(act_data[ , 1], list(act_data$date), sum)
+names(num_steps_perDay) <- c("Days", "NumberSteps")
+```
+
+Second, this data is visualized using a histrogram plot using the base system
+
+```{r}
+hist(num_steps_perDay$NumberSteps, col = "red", xlab = "Total number of steps per day", main = "Histogram of the total number of steps per day", breaks = 10)
+```
+
+
+```{r}
+mean_across_days <- mean(num_steps_perDay$NumberSteps)
+median_across_days <- median(num_steps_perDay$NumberSteps)
+```
+
+```{r}
+hist(num_steps_perDay$NumberSteps, col = "red", xlab = "Total number of steps per day", main = "Histogram of the total number of steps per day", breaks = 10)
+abline(v = mean_across_days, col = "blue", lwd = 2)
+```
 
 ## What is the average daily activity pattern?
 
+```{r}
+ave_perMin_acrossDays <- aggregate(act_data[ , 1], list(act_data$interval), mean)
+names(ave_perMin_acrossDays) <- c("interval", "AveSteps_acrossDays")
+```
 
+```{r}
+p <- ggplot(ave_perMin_acrossDays, aes(x = interval, y = AveSteps_acrossDays))
+p + geom_line(col = "steelblue")
+
+plot(ave_perMin_acrossDays$interval, ave_perMin_acrossDays$AveSteps_acrossDays, type = "l")
+```
+
+```{r}
+max_index <- which.max(ave_perMin_acrossDays$AveSteps_acrossDays)
+max_interval <- ave_perMin_acrossDays$interval[max_index]
+```
+
+```{r}
+p + geom_line(col = "steelblue") + geom_vline(xintercept = max_interval, col = "red")
+```
 
 ## Imputing missing values
 
+First, we compute the number of NA rows using the complete.cases function.
 
+```{r}
+num_NArows <- sum(!complete.cases(act_data_raw))
+```
+
+```{r}
+num_NArows/dim(act_data_raw)[1]
+```
+
+```{r}
+sum_act_data_raw <- summary(act_data_raw$date)
+sum_act_data <- summary(act_data$date)
+```
+
+Hence, there are a few days for which the data is completely missing. 
+For those days the more straightforwd solution would be to impute these values by using the mean for the 5-minute interval across the remaining days.
+
+```{r}
+act_data_imp <- act_data_raw
+impute_days <- names(sum_act_data)[which(sum_act_data == 0)]
+
+for (num_days in seq_along(impute_days)){
+        act_data_imp[which(act_data_imp$date == impute_days[[num_days]]), 1] <- ave_perMin_acrossDays$AveSteps_acrossDays   
+}
+```
+
+```{r}
+num_steps_perDay_imp <- aggregate(act_data_imp[ , 1], list(act_data_imp$date), sum)
+names(num_steps_perDay_imp) <- c("Days", "NumberSteps")
+
+mean_across_days_imp <- mean(num_steps_perDay_imp$NumberSteps)
+median_across_days_imp <- median(num_steps_perDay_imp$NumberSteps)
+
+quartz()
+par(mfrow = c(1,2))
+hist(num_steps_perDay$NumberSteps, col = "red", xlab = "Total number of steps per day", main = "Histogram of the total number of steps per day", breaks = 10)
+abline(v = mean_across_days, col = "blue", lwd = 2)
+
+hist(num_steps_perDay_imp$NumberSteps, col = "red", xlab = "Total number of steps per day", main = "Histogram of the total number of steps per day", breaks = 10)
+abline(v = mean_across_days_imp, col = "blue", lwd = 2)
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
