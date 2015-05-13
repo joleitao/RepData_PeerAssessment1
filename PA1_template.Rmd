@@ -5,91 +5,144 @@ output:
     keep_md: true
 ---
 
-# Reproducible Research - Peer Assessment 1
+  
+Make sure you have set working directory appropriately.
 
-Make sure you have set working directory appropriately and that you have unzipped the data file.
-
-## Loading and preprocessing the data
-
-As a first step, we load the data using read.csv and remove all the missing values: 
-
-```{r}
-act_data_raw <- read.csv("activity.csv")
-act_data <- act_data_raw[complete.cases(act_data_raw), ]
+```{r zip check}
+if (!file.exists("activity.csv")) {
+        unzip("activity.zip")
+}
 ```
+  
+### Loading and preprocessing the data
+  
+As a first step, we load the data using read.csv:
+  
+```{r loading}
+act_data <- read.csv("activity.csv")
+```
+  
+We then have a look at the data to see if something needs to be done. 
+  
+```{r data overview}
+str(act_data)
+summary(act_data)
+```
+  
+There seem to be quite a few NAs in the data and the values in the "interval"" variable are quite high.  
+Indeed, a closer look at the first 15 values of this variable suggests that it's format might not be ideal, as it has a lot of jumps.
+  
+```{r closer look}
+head(act_data, 15)
+```
+  
+In order to transform it to an appropriate time variable, I first pad it with zeros on the left so that all the values of the same length. 
+  
+```{r padding}
+interval_padding <- formatC(act_data$interval, width=4, flag="0")
+```
+  
+After transforming it to an anambigous time format in interval_aux, I extract only the relevant hour and minute component using the lubridate package.
+  
+```{r transforming into time}
+int_aux <- paste(act_data$date, paste(substr(interval_padding,0,2), substr(interval_padding,3,4), sep = ":"))
 
-## What is mean total number of steps taken per day?
+library(lubridate)
+act_data$intervalTime <- hour(int_aux) + minute(int_aux)/60
+```
+  
+    
+### What is mean total number of steps taken per day?
 
 This question is addressed in three steps.  
-First, the total number of steps is calculated for each day. 
+First, the total number of steps is calculated for each day using the aggregate function. This function can be called in the two following ways: 
 
-```{r}
+```{r total number of steps}
 num_steps_perDay <- aggregate(act_data[ , 1], list(act_data$date), sum)
 names(num_steps_perDay) <- c("Days", "NumberSteps")
 ```
 
-Second, this data is visualized using a histrogram plot using the base system
+or
 
-```{r}
-hist(num_steps_perDay$NumberSteps, col = "red", xlab = "Total number of steps per day", main = "Histogram of the total number of steps per day", breaks = 10)
+```{r alternative}
+num_steps_alt <- aggregate(steps ~ date, act_data, sum)
 ```
 
+which automatically adds the variable names.    
 
-```{r}
-mean_across_days <- mean(num_steps_perDay$NumberSteps)
-median_across_days <- median(num_steps_perDay$NumberSteps)
+Second, these data are visualized via a histrogram plot. This time I use the base system for that.
+
+```{r plotting histogram}
+hist(num_steps_perDay$NumberSteps, col = "red", xlab = "Total number of steps per day", 
+     main = "Histogram of the total number of steps per day", breaks = 10)
 ```
 
-```{r}
-hist(num_steps_perDay$NumberSteps, col = "red", xlab = "Total number of steps per day", main = "Histogram of the total number of steps per day", breaks = 10)
+Third, the mean and the median total number of steps taken per day are calculated.
+
+```{r mean and median}
+mean_across_days <- round(mean(num_steps_perDay$NumberSteps, na.rm = TRUE))
+median_across_days <- median(num_steps_perDay$NumberSteps, na.rm = TRUE)
+```
+
+The mean and median are `r mean_across_days` and `r median_across_days`, respectively. In this case they do not differ much from each other. As a check, let's plot one of them together with the histogram. 
+
+```{r histogram and mean}
+hist(num_steps_perDay$NumberSteps, col = "red", xlab = "Total number of steps per day",
+     main = "Histogram of the total number of steps per day", breaks = 10)
 abline(v = mean_across_days, col = "blue", lwd = 2)
 ```
 
-## What is the average daily activity pattern?
-
-```{r}
-ave_perMin_acrossDays <- aggregate(act_data[ , 1], list(act_data$interval), mean)
-names(ave_perMin_acrossDays) <- c("interval", "AveSteps_acrossDays")
+### What is the average daily activity pattern?
+  
+  Again, let's use the aggregate function to do that.
+  
+```{r average daily pattern}
+ave_perMin_acrossDays <- aggregate(act_data[ , 1], list(act_data$intervalTime), mean, na.rm = TRUE)
+names(ave_perMin_acrossDays) <- c("intervalTime", "AveSteps_acrossDays")
 ```
 
-```{r}
-p <- ggplot(ave_perMin_acrossDays, aes(x = interval, y = AveSteps_acrossDays))
+Por eixos como deve ser
+```{r plot daily pattern}
+library("ggplot2")
+p <- ggplot(ave_perMin_acrossDays, aes(x = intervalTime, y = AveSteps_acrossDays))
 p + geom_line(col = "steelblue")
-
-plot(ave_perMin_acrossDays$interval, ave_perMin_acrossDays$AveSteps_acrossDays, type = "l")
 ```
 
-```{r}
+```{r max interval}
 max_index <- which.max(ave_perMin_acrossDays$AveSteps_acrossDays)
 max_interval <- ave_perMin_acrossDays$interval[max_index]
 ```
+
+The 5-minute interval that contains the maximum number of steps is 
 
 ```{r}
 p + geom_line(col = "steelblue") + geom_vline(xintercept = max_interval, col = "red")
 ```
 
-## Imputing missing values
+### Imputing missing values
 
 First, we compute the number of NA rows using the complete.cases function.
 
 ```{r}
-num_NArows <- sum(!complete.cases(act_data_raw))
+num_NArows <- sum(!complete.cases(act_data))
+summary(act_data)
 ```
 
+The total numver of NA is `r num_NArows`.
+
 ```{r}
-num_NArows/dim(act_data_raw)[1]
+data_complete <- act_data[which(complete.cases(act_data)), ]
+summary(act_data$date)
+summary(data_complete$date)
 ```
 
-```{r}
-sum_act_data_raw <- summary(act_data_raw$date)
-sum_act_data <- summary(act_data$date)
-```
-
-Hence, there are a few days for which the data is completely missing. 
-For those days the more straightforwd solution would be to impute these values by using the mean for the 5-minute interval across the remaining days.
+Hence, the NAs actually correspond to days for which the data is completely missing. 
+Therefore, the more straightforwd solution would be to impute these values by using the mean for the 5-minute interval across the remaining days.
 
 ```{r}
-act_data_imp <- act_data_raw
+act_data_imp <- act_data
+sum_act_data <- summary(data_complete$date)
+
 impute_days <- names(sum_act_data)[which(sum_act_data == 0)]
 
 for (num_days in seq_along(impute_days)){
@@ -103,8 +156,32 @@ names(num_steps_perDay_imp) <- c("Days", "NumberSteps")
 
 mean_across_days_imp <- mean(num_steps_perDay_imp$NumberSteps)
 median_across_days_imp <- median(num_steps_perDay_imp$NumberSteps)
+```
 
-quartz()
+fazer o mm com o median
+
+```{r impute median}
+median_perMin_acrossDays <- aggregate(act_data[ , 1], list(act_data$intervalTime), median, na.rm = TRUE)
+names(median_perMin_acrossDays) <- c("intervalTime", "MedianSteps_acrossDays")
+
+imp_median <- act_data
+
+for (num_days in seq_along(impute_days)){
+        imp_median[which(imp_median$date == impute_days[[num_days]]), 1] <- median_perMin_acrossDays   
+}
+
+```
+
+```{r}
+num_steps_perDay_imp_median <- aggregate(imp_median[ , 1], list(imp_mdeian$date), sum)
+names(num_steps_perDay_imp_median) <- c("Days", "NumberSteps")
+
+mean_across_days_imp_median <- mean(num_steps_perDay_imp_median$NumberSteps)
+median_across_days_imp_median <- median(num_steps_perDay_imp_median$NumberSteps)
+```
+
+mudar valores dos eixos
+```{r}
 par(mfrow = c(1,2))
 hist(num_steps_perDay$NumberSteps, col = "red", xlab = "Total number of steps per day", main = "Histogram of the total number of steps per day", breaks = 10)
 abline(v = mean_across_days, col = "blue", lwd = 2)
@@ -113,4 +190,28 @@ hist(num_steps_perDay_imp$NumberSteps, col = "red", xlab = "Total number of step
 abline(v = mean_across_days_imp, col = "blue", lwd = 2)
 ```
 
-## Are there differences in activity patterns between weekdays and weekends?
+### Are there differences in activity patterns between weekdays and weekends?
+
+```{r}
+days_aux <- weekdays(as.Date(act_data$date, "%Y-%m-%d"))
+act_data$weekDays <-sapply(days_aux, function(x) if(any(x == c("Saturday", "Sunday"))) {"weekend"} else {"weekday"})
+```
+
+```{r}
+data_weekdays <- act_data[which(act_data$weekDays == "weekday"), ]
+data_weekend <- act_data[which(act_data$weekDays == "weekend"), ]
+
+mean_weekdays <- aggregate(steps ~ intervalTime, data_weekdays, mean, na.rm = TRUE)
+mean_weekdays$weekDays <-"weekday"
+
+mean_weekend <- aggregate(steps ~ intervalTime, data_weekend, mean, na.rm = TRUE)
+mean_weekend$weekDays <-"weekend"
+
+ave_weekDays <- rbind(mean_weekdays,mean_weekend)
+ave_weekDays <- transform(ave_weekDays, weekDays = factor(weekDays)) 
+```
+Now I use the lattice package to do the plot.
+```{r}
+library("lattice")
+xyplot(steps ~ intervalTime | weekDays, data = ave_weekDays, type = "l", layout = c(1, 2))
+```
